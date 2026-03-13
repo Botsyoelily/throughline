@@ -1,18 +1,6 @@
-const DEVELOPMENT_ACCESS_TOKEN = "throughline-local-demo";
 const DEVELOPMENT_SESSION_SECRET = "throughline-local-session-secret";
+const DEVELOPMENT_INVITE_SECRET = "throughline-local-invite-secret";
 const DEFAULT_ANTHROPIC_MODEL = "claude-sonnet-4-5-20250929";
-
-export function getAccessToken() {
-  if (process.env.THROUGHLINE_ACCESS_TOKEN) {
-    return process.env.THROUGHLINE_ACCESS_TOKEN;
-  }
-
-  if (process.env.NODE_ENV !== "production") {
-    return DEVELOPMENT_ACCESS_TOKEN;
-  }
-
-  throw new Error("THROUGHLINE_ACCESS_TOKEN is required in production.");
-}
 
 export function getSessionSecret() {
   if (process.env.THROUGHLINE_SESSION_SECRET) {
@@ -38,4 +26,16 @@ export function getAnthropicApiKey() {
 
 export function getAnthropicModel() {
   return process.env.ANTHROPIC_MODEL || DEFAULT_ANTHROPIC_MODEL;
+}
+
+export function getInviteSecret() {
+  if (process.env.THROUGHLINE_INVITE_SECRET) {
+    return process.env.THROUGHLINE_INVITE_SECRET;
+  }
+
+  if (process.env.NODE_ENV !== "production") {
+    return DEVELOPMENT_INVITE_SECRET;
+  }
+
+  throw new Error("THROUGHLINE_INVITE_SECRET is required in production.");
 }

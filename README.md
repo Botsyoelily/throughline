@@ -4,7 +4,7 @@ Throughline is a privacy nudge copilot that helps users understand the downstrea
 
 ## What The App Does
 
-- validates an access token before entering the workspace
+- redeems a signed invite link before entering the workspace
 - accepts privacy prompts as text, screenshot, or voice transcript
 - returns a concise consequence summary plus a recommendation
 - shows immediate, short-term, and long-term impacts
@@ -36,8 +36,8 @@ cp .env.example .env.local
 
 Required variables:
 
-- `THROUGHLINE_ACCESS_TOKEN`
 - `THROUGHLINE_SESSION_SECRET`
+- `THROUGHLINE_INVITE_SECRET`
 - `ANTHROPIC_API_KEY`
 
 Optional variable:
@@ -46,10 +46,10 @@ Optional variable:
 
 If you do not set them in development, the app falls back to:
 
-- access token: `throughline-local-demo`
 - session secret: local development default only
+- invite secret: local development default only
 
-Do not use the development fallback in production.
+Do not use development fallbacks in production.
 There is no development fallback for Claude credentials.
 
 ### 3. Start the app
@@ -64,10 +64,26 @@ Then open `http://localhost:3000`.
 
 On the landing page:
 
-- enter your configured access token
-- or, in local development, use `throughline-local-demo`
+- open a signed invite link that points to `/invite?token=...`
+- after redemption, land on `/` and click `Enter Throughline`
 
 After successful entry, Throughline sets a signed `httpOnly` session cookie and redirects to `/chat`.
+
+### 5. Generate a tester invite link
+
+Generate a signed invite URL locally:
+
+```bash
+npm run invite:generate -- http://localhost:3000 168 cohort-a
+```
+
+Arguments:
+
+- base URL, for example `https://your-study-app.example`
+- TTL in hours, for example `168` for 7 days
+- optional cohort label
+
+The command prints a full invite URL. Share that link with testers. The tester does not need the Anthropic key, session secret, or invite secret.
 
 ## How To Use The Current App
 
@@ -113,12 +129,13 @@ Already ignored:
 
 Do not commit:
 
-- real access tokens
 - production session secrets
+- invite-signing secrets
 
 The app currently includes:
 
 - signed session cookies
+- signed invite links with expiry
 - same-origin checks on state-changing routes
 - schema validation on API inputs
 - file size and type checks for screenshot uploads
@@ -127,7 +144,6 @@ The app currently includes:
 
 ## Current API Surface
 
-- `POST /api/auth/access-token`
 - `GET /api/analyses`
 - `POST /api/analyze/text`
 - `POST /api/analyze/image`
@@ -150,7 +166,6 @@ docs/
 lib/
   analysis/
   security/
-  storage/
   validation/
 middleware.ts
 ```

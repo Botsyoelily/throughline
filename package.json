@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint . --ext .ts,.tsx",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "invite:generate": "node scripts/generate-invite-link.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.78.0",

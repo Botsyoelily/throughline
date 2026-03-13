@@ -6,7 +6,7 @@ Throughline processes privacy-sensitive prompts, screenshots, and transcripts. T
 
 ## Protected Assets
 
-- access tokens and session identifiers
+- signed invite links and session identifiers
 - uploaded screenshots
 - voice recordings and transcripts
 - analysis content and verdict history
@@ -37,7 +37,7 @@ Controls:
 ### Authentication Abuse
 
 Risk:
-Attackers brute-force or replay access tokens.
+Attackers brute-force or replay invite links.
 
 Controls:
 
@@ -133,7 +133,7 @@ Log:
 
 Do not log:
 
-- raw access tokens
+- raw invite tokens
 - raw screenshots
 - full transcripts unless explicitly justified and protected
 - raw prompts or full analysis payloads

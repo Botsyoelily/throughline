@@ -10,9 +10,20 @@ const featureTags = [
   "Info Asymmetry"
 ];
 
-const showDevelopmentToken = process.env.NODE_ENV !== "production";
+export default async function LandingPage({
+  searchParams
+}: {
+  searchParams?: Promise<{ invite?: string | undefined }>;
+}) {
+  const resolvedSearchParams = searchParams ? await searchParams : undefined;
+  const inviteStatus =
+    resolvedSearchParams?.invite === "ready" ||
+    resolvedSearchParams?.invite === "invalid" ||
+    resolvedSearchParams?.invite === "missing" ||
+    resolvedSearchParams?.invite === "rate_limited"
+      ? resolvedSearchParams.invite
+      : undefined;
 
-export default function LandingPage() {
   return (
     <main className="landing-page">
       <section className="landing-panel">
@@ -36,16 +47,11 @@ export default function LandingPage() {
             </span>
           ))}
         </div>
-        {showDevelopmentToken ? (
-          <p className="dev-token-note">
-            Local development token: <code>throughline-local-demo</code>
-          </p>
-        ) : null}
         <Link className="preview-link" href="/chat?preview=1">
           Preview the chat workspace
         </Link>
       </section>
-      <AccessTokenForm />
+      <AccessTokenForm inviteStatus={inviteStatus} />
     </main>
   );
 }

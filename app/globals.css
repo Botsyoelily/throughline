@@ -364,6 +364,11 @@ textarea:disabled {
   transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
+.auth-link-btn {
+  display: block;
+  text-align: center;
+}
+
 .cta-btn:hover:not(:disabled) {
   transform: translateY(-1px);
   box-shadow: 0 8px 24px rgba(14, 116, 144, 0.4);

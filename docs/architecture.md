@@ -26,7 +26,7 @@ The client must never hold model provider secrets or make trusted authorization 
 
 The app server is the trust boundary. It is responsible for:
 
-- validating access tokens or authenticated sessions
+- validating signed invite links or authenticated sessions
 - authorizing access to protected data
 - validating request bodies
 - enforcing file limits and MIME constraints
@@ -44,14 +44,15 @@ Current retention policy:
 
 ## Suggested Request Flow
 
-1. The user enters Throughline with an access token.
-2. The app server validates the token and issues a secure session.
-3. The user submits text, a screenshot, or a voice input.
-4. The app server validates the input and normalizes it into analysis content.
-5. The analysis service builds a structured prompt and requests a model response.
-6. The model output is validated against a strict schema.
-7. The server returns the validated result without persisting the analysis payload.
-8. The client renders the response, verdict card, and follow-up actions in session memory only.
+1. The user opens a signed invite link.
+2. The app server validates the invite and issues a secure session.
+3. The user lands on the landing page and enters Throughline.
+4. The user submits text, a screenshot, or a voice input.
+5. The app server validates the input and normalizes it into analysis content.
+6. The analysis service builds a structured prompt and requests a model response.
+7. The model output is validated against a strict schema.
+8. The server returns the validated result without persisting the analysis payload.
+9. The client renders the response, verdict card, and follow-up actions in session memory only.
 
 ## Response Contract
 
