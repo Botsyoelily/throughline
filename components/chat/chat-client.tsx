@@ -66,11 +66,25 @@ export function ChatClient() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState("");
+  const [orbitalPulse, setOrbitalPulse] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [messages, isGenerating]);
+
+  useEffect(() => {
+    const latestMessage = messages[messages.length - 1];
+
+    if (!latestMessage || latestMessage.role !== "assistant") {
+      return;
+    }
+
+    setOrbitalPulse(true);
+    const timeout = window.setTimeout(() => setOrbitalPulse(false), 1800);
+
+    return () => window.clearTimeout(timeout);
+  }, [messages]);
 
   function appendAnalysisMessages(
     userContent: string,
@@ -285,6 +299,54 @@ export function ChatClient() {
 
   return (
     <main className="chat-body">
+      <div
+        className={orbitalPulse ? "orbital-field orbital-field-pulse" : "orbital-field"}
+        aria-hidden="true"
+      >
+        <svg className="orbital-svg" viewBox="0 0 520 720" fill="none">
+          <g className="orbital-float">
+            <ellipse
+              className="orbital-ring orbital-ring-a"
+              cx="290"
+              cy="310"
+              rx="170"
+              ry="206"
+            />
+            <ellipse
+              className="orbital-ring orbital-ring-b"
+              cx="290"
+              cy="310"
+              rx="120"
+              ry="152"
+            />
+            <path
+              className="orbital-thread-path"
+              d="M108 242C164 206 221 196 279 220C352 249 392 316 422 408"
+            />
+            <path
+              className="orbital-thread-path orbital-thread-soft"
+              d="M168 468C225 503 303 513 370 474C410 450 433 412 445 358"
+            />
+          </g>
+          <g className="orbital-rotate orbital-rotate-slow">
+            <circle className="orbital-node orbital-node-core" cx="290" cy="158" r="11" />
+            <circle className="orbital-node orbital-node-muted" cx="437" cy="304" r="8" />
+            <circle className="orbital-node orbital-node-deep" cx="320" cy="506" r="9" />
+          </g>
+          <g className="orbital-rotate orbital-rotate-reverse">
+            <circle className="orbital-node orbital-node-muted" cx="138" cy="305" r="7" />
+            <circle className="orbital-node orbital-node-core" cx="246" cy="456" r="10" />
+            <circle className="orbital-node orbital-node-deep" cx="350" cy="220" r="6" />
+          </g>
+          <g className="orbital-echo">
+            <path className="orbital-accent" d="M228 141L249 158L228 177" />
+            <path
+              className="orbital-accent orbital-accent-soft"
+              d="M395 286L416 303L395 322"
+            />
+          </g>
+        </svg>
+      </div>
       <section className="chat-main">
         <div className="messages-area">
           {messages.length === 0 ? (
