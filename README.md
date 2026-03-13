@@ -1,104 +1,174 @@
 # Throughline
 
-Throughline is a privacy nudge copilot that helps people understand the downstream consequences of privacy-related choices before they click accept, decline, or override. It combines concise guidance, multimodal input, and an advisory verdict layer designed to preserve user agency while making privacy tradeoffs more legible.
+Throughline is a privacy nudge copilot that helps users understand the downstream consequences of privacy-related choices before they accept, decline, or override them. The current app supports text input, screenshot analysis, and voice transcript analysis inside a session-protected chat workspace.
 
-## Why This Exists
+## What The App Does
 
-Most privacy prompts are optimized for completion, not comprehension. Throughline addresses that gap by translating a request into:
+- validates an access token before entering the workspace
+- accepts privacy prompts as text, screenshot, or voice transcript
+- returns a concise consequence summary plus a recommendation
+- shows immediate, short-term, and long-term impacts
+- lets the user record a verdict action: `Decline`, `Accept anyway`, or `Override`
+- stores analysis history per session locally during development
 
-- a short explanation of what is being asked
-- projected consequences across time
-- a recommendation with confidence
-- clear next actions the user can take
+## Stack
 
-The product goal is not to replace user judgment. It is to improve it.
-
-## Current Scope
-
-This repository currently includes:
-
-- a secure baseline Next.js and TypeScript scaffold
-- a landing and access page for Throughline
-- a chat workspace wireframe for text, screenshot, and voice input
-- a verdict card component that recommends `Decline`, `Accept anyway`, or `Override`
-- architecture and threat-model documentation for implementation
-
-## Product Flow
-
-1. User lands on the Throughline access page.
-2. User provides an access token to enter the workspace.
-3. User submits text, a screenshot, or a voice note.
-4. Throughline shows a branded generating state.
-5. Throughline returns a concise summary, projected impacts, and a recommendation.
-6. User chooses a follow-up path or records a verdict action.
-
-## Tech Direction
-
-- `Next.js`
+- `Next.js 15`
+- `React 19`
 - `TypeScript`
-- server-side validation with `zod`
-- structured model output for deterministic UI rendering
-- server-only analysis orchestration for privacy and key protection
+- `zod` for request validation
 
-## Security Baseline
+## Run Locally
 
-Security is a build requirement, not a later hardening step. The implementation is expected to follow OWASP Top 10 guidance and adjacent secure engineering practices.
+### 1. Install dependencies
 
-Current baseline in this repo:
+```bash
+npm install
+```
 
-- strict TypeScript configuration
-- route-gating middleware stub for protected paths
-- security headers via middleware
-- server-first trust model for future token validation and authorization
-- threat-model documentation covering uploads, prompt injection, auth abuse, and data exposure
+### 2. Create environment variables
 
-Planned controls:
+Copy [.env.example](./.env.example) to `.env.local` and set real values:
 
-- server-side auth and authorization checks on every protected action
-- schema validation on all requests and model responses
-- rate limiting and abuse protection
-- secure session management
-- upload type and size restrictions
-- secret redaction in logs
-- CSP, HSTS, and related headers tuned for production
+```bash
+cp .env.example .env.local
+```
 
-## Repository Structure
+Required variables:
+
+- `THROUGHLINE_ACCESS_TOKEN`
+- `THROUGHLINE_SESSION_SECRET`
+
+If you do not set them in development, the app falls back to:
+
+- access token: `throughline-local-demo`
+- session secret: local development default only
+
+Do not use the development fallback in production.
+
+### 3. Start the app
+
+```bash
+npm run dev
+```
+
+Then open `http://localhost:3000`.
+
+### 4. Enter the app
+
+On the landing page:
+
+- enter your configured access token
+- or, in local development, use `throughline-local-demo`
+
+After successful entry, Throughline sets a signed `httpOnly` session cookie and redirects to `/chat`.
+
+## How To Use The Current App
+
+### Text analysis
+
+1. Open the `Text` tab.
+2. Paste a privacy prompt or request.
+3. Click `Analyze request`.
+
+### Screenshot analysis
+
+1. Open the `Screenshot` tab.
+2. Upload a `PNG`, `JPEG`, or `WebP` image under `5 MB`.
+3. If your browser supports `TextDetector`, Throughline will try to extract the text automatically.
+4. If not, add a short note describing the prompt in the screenshot.
+5. Click `Analyze screenshot`.
+
+### Voice analysis
+
+1. Open the `Voice` tab.
+2. Start recording if your browser supports speech recognition.
+3. Review or edit the transcript.
+4. Click `Analyze transcript`.
+
+## Available Scripts
+
+```bash
+npm run dev
+npm run build
+npm run start
+npm run lint
+npm run typecheck
+```
+
+## Security Notes
+
+This repository is set up to avoid committing secrets or session data.
+
+Already ignored:
+
+- `.env*` local environment files
+- `data/analyses.json` local session history
+- build output and dependency folders
+
+Do not commit:
+
+- real access tokens
+- production session secrets
+- generated local analysis data
+
+The app currently includes:
+
+- signed session cookies
+- same-origin checks on state-changing routes
+- schema validation on API inputs
+- file size and type checks for screenshot uploads
+- image signature validation instead of trusting MIME type alone
+
+## Current API Surface
+
+- `POST /api/auth/access-token`
+- `GET /api/analyses`
+- `POST /api/analyze/text`
+- `POST /api/analyze/image`
+- `POST /api/analyze/voice`
+- `POST /api/verdict-action`
+
+## Project Structure
 
 ```text
 app/
+  api/
   chat/
 components/
   auth/
   brand/
   chat/
-  inputs/
   verdict/
+data/
 docs/
 lib/
+  analysis/
+  security/
+  storage/
+  validation/
 middleware.ts
 ```
 
-## Getting Started
+## Verification
 
-1. Install dependencies.
-2. Create environment variables for auth, storage, and model providers.
-3. Run the development server.
+The current app has been verified with:
 
 ```bash
-npm install
-npm run dev
+npm run typecheck
+npm run lint
+npm run build
 ```
 
-## Next Build Steps
+## Limitations
 
-1. Add real access-token validation and session handling.
-2. Define the analysis API contract with schema validation.
-3. Implement screenshot upload and voice transcription adapters.
-4. Persist analyses, verdict actions, and conversation history.
-5. Add tests for auth, uploads, validation, and protected routes.
+- screenshot OCR currently depends on the browser `TextDetector` API when available
+- voice input currently depends on browser speech recognition support
+- persistence is file-backed for local development, not yet a production database
+- the analysis engine is currently heuristic and local, not yet connected to a model provider
 
 ## Documentation
 
 - [Architecture](./docs/architecture.md)
 - [Threat Model](./docs/threat-model.md)
-
+- [Contributing](./CONTRIBUTING.md)
