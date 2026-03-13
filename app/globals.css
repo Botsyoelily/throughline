@@ -948,8 +948,10 @@ textarea:disabled {
 
 .btn-override {
   flex: 0.7;
-  background: transparent;
-  border: 1.5px solid rgba(0, 0, 0, 0.12);
+  background: rgba(37, 99, 235, 0.16);
+  border: 1.5px solid rgba(37, 99, 235, 0.3);
+  color: #1d4ed8;
+  box-shadow: 0 4px 16px rgba(37, 99, 235, 0.18);
 }
 
 .active-verdict {
@@ -965,7 +967,12 @@ textarea:disabled {
 }
 
 .caution .btn-override {
-  color: #92400e;
+  color: #1d4ed8;
+}
+
+.verdict-btn:disabled {
+  opacity: 1;
+  cursor: default;
 }
 
 .analysis-divider {

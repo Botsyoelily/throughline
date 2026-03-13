@@ -1,7 +1,5 @@
 import type { AnalysisResponse, VerdictAction } from "@/lib/types";
 
-const ACTION_CONFIDENCE_THRESHOLD = 65;
-
 const verdictMeta: Record<
   AnalysisResponse["recommendation"],
   {
@@ -36,35 +34,28 @@ const verdictMeta: Record<
 
 export function VerdictCard({
   analysis,
-  selectedAction,
-  onAction
+  selectedAction
 }: {
   analysis: AnalysisResponse;
   selectedAction?: VerdictAction;
-  onAction?: (action: VerdictAction) => void;
 }) {
   const meta = verdictMeta[analysis.recommendation];
-  const action =
-    analysis.recommendation === "decline" &&
-    analysis.confidence >= ACTION_CONFIDENCE_THRESHOLD
+  const action = analysis.recommendation === "accept_with_caution"
+    ? null
+    : analysis.recommendation === "decline"
       ? {
           id: "decline" as const,
           label: "Decline",
           className: "btn-decline"
         }
-      : analysis.recommendation === "safe_to_accept" &&
-          analysis.confidence >= ACTION_CONFIDENCE_THRESHOLD
+      : analysis.recommendation === "safe_to_accept"
         ? {
             id: "accept_anyway" as const,
             label: "Accept",
             className: "btn-accept"
           }
-        : {
-            id: "override" as const,
-            label: "Override",
-            className: "btn-override"
-          };
-  const showLowConfidenceNote = action.id === "override";
+        : null;
+  const showLowConfidenceNote = analysis.recommendation === "accept_with_caution";
 
   return (
     <section className={`verdict-card ${meta.cardClass}`} aria-label="Recommendation">
@@ -93,17 +84,20 @@ export function VerdictCard({
           </div>
         </div>
       </div>
-      <div className="verdict-actions">
-        <button
-          className={`verdict-btn ${action.className} ${
-            selectedAction === action.id ? "active-verdict" : ""
-          }`}
-          type="button"
-          onClick={() => onAction?.(action.id)}
-        >
-          {action.label}
-        </button>
-      </div>
+      {action ? (
+        <div className="verdict-actions">
+          <button
+            className={`verdict-btn ${action.className} ${
+              selectedAction === action.id ? "active-verdict" : ""
+            }`}
+            type="button"
+            disabled
+            aria-disabled="true"
+          >
+            {action.label}
+          </button>
+        </div>
+      ) : null}
     </section>
   );
 }

@@ -4,28 +4,8 @@ import { useState } from "react";
 
 type ScreenshotUploaderProps = {
   disabled?: boolean;
-  onSubmit: (args: { file: File; extractedText: string; note: string }) => Promise<void>;
+  onSubmit: (args: { file: File; note: string }) => Promise<void>;
 };
-
-declare global {
-  interface Window {
-    TextDetector?: new () => {
-      detect(input: ImageBitmapSource): Promise<Array<{ rawValue: string }>>;
-    };
-  }
-}
-
-async function extractTextFromImage(file: File) {
-  if (typeof window === "undefined" || !window.TextDetector) {
-    return "";
-  }
-
-  const bitmap = await createImageBitmap(file);
-  const detector = new window.TextDetector();
-  const blocks = await detector.detect(bitmap);
-
-  return blocks.map((block) => block.rawValue).join(" ").trim();
-}
 
 export function ScreenshotUploader({
   disabled = false,
@@ -41,16 +21,11 @@ export function ScreenshotUploader({
       return;
     }
 
-    setStatus("Extracting text from screenshot...");
+    setStatus("Analyzing screenshot...");
 
     try {
-      const extractedText = await extractTextFromImage(file);
-      await onSubmit({ file, extractedText, note });
-      setStatus(
-        extractedText
-          ? "Screenshot analyzed."
-          : "Screenshot sent with your note because browser text extraction was unavailable."
-      );
+      await onSubmit({ file, note });
+      setStatus("Screenshot analyzed.");
       setNote("");
       setFile(null);
     } catch {
@@ -73,7 +48,7 @@ export function ScreenshotUploader({
         rows={2}
         value={note}
         onChange={(event) => setNote(event.target.value)}
-        placeholder="Add a note if the screenshot text may be unclear."
+        placeholder="Optional note for extra context."
         disabled={disabled}
       />
       <div className="composer-actions">

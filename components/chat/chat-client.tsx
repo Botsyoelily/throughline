@@ -229,11 +229,9 @@ export function ChatClient() {
 
   async function submitScreenshotAnalysis({
     file,
-    extractedText,
     note
   }: {
     file: File;
-    extractedText: string;
     note: string;
   }) {
     setError("");
@@ -242,7 +240,6 @@ export function ChatClient() {
     try {
       const formData = new FormData();
       formData.set("file", file);
-      formData.set("extractedText", extractedText);
       formData.set("note", note);
 
       const response = await fetch("/api/analyze/image", {
@@ -256,23 +253,13 @@ export function ChatClient() {
         return;
       }
 
-      appendAnalysisMessages(extractedText || note || file.name, "screenshot", data);
+      appendAnalysisMessages(note || file.name, "screenshot", data);
       setActiveMode("text");
     } catch {
       setError("Unable to reach the screenshot analysis service.");
     } finally {
       setIsGenerating(false);
     }
-  }
-
-  function selectVerdict(messageId: string, action: VerdictAction) {
-    setMessages((current) =>
-      current.map((message) =>
-        message.role === "assistant" && message.id === messageId
-          ? { ...message, verdictAction: action }
-          : message
-      )
-    );
   }
 
   function resetConversation() {
@@ -365,7 +352,6 @@ export function ChatClient() {
                   <VerdictCard
                     analysis={message.analysis}
                     selectedAction={message.verdictAction}
-                    onAction={(action) => selectVerdict(message.id, action)}
                   />
                   <div className="bubble bot analysis-bubble">
                     <div className="analysis-divider">

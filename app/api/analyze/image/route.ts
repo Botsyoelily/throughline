@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { AnalysisProviderError, analyzeTextPrompt } from "@/lib/analysis/text-analyzer";
+import { AnalysisProviderError, analyzeScreenshot } from "@/lib/analysis/text-analyzer";
 import { ensureSameOrigin } from "@/lib/security/origin";
 import { getValidatedSessionToken, unauthorizedResponse } from "@/lib/security/request-session";
 
@@ -44,7 +44,6 @@ export async function POST(request: Request) {
 
   const formData = await request.formData();
   const file = formData.get("file");
-  const extractedText = formData.get("extractedText");
   const note = formData.get("note");
 
   if (!(file instanceof File)) {
@@ -72,26 +71,12 @@ export async function POST(request: Request) {
     );
   }
 
-  const candidateText =
-    typeof extractedText === "string" && extractedText.trim().length >= 10
-      ? extractedText.trim()
-      : typeof note === "string" && note.trim().length >= 10
-        ? note.trim()
-        : "";
-
-  if (!candidateText) {
-    return NextResponse.json(
-      {
-        error:
-          "Throughline could not extract enough text from the screenshot. Add a short note describing the request."
-      },
-      { status: 400 }
-    );
-  }
-
   try {
-    const normalizedPrompt = `Screenshot prompt: ${candidateText}`;
-    const analysis = await analyzeTextPrompt(normalizedPrompt, "screenshot");
+    const analysis = await analyzeScreenshot({
+      fileBuffer: await file.arrayBuffer(),
+      mimeType: file.type as "image/png" | "image/jpeg" | "image/webp",
+      note: typeof note === "string" ? note : ""
+    });
     return NextResponse.json({ ...analysis, source: "image" });
   } catch (error) {
     if (error instanceof AnalysisProviderError) {

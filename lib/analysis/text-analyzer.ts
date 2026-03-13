@@ -9,7 +9,10 @@ import { analysisResponseSchema } from "@/lib/validation/analysis";
 
 const ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages";
 const ANTHROPIC_VERSION = "2023-06-01";
-const PROVIDER_TIMEOUT_MS = 20_000;
+const DEFAULT_PROVIDER_TIMEOUT_MS = 20_000;
+const SCREENSHOT_PROVIDER_TIMEOUT_MS = 35_000;
+const MAX_PROMPT_CHARS = 2_000;
+const MAX_SCREENSHOT_PROMPT_CHARS = 1_400;
 
 const SYSTEM_PROMPT = `You are Throughline, a privacy nudge analysis engine.
 
@@ -63,6 +66,15 @@ type AnthropicTextBlock = {
   text: string;
 };
 
+type AnthropicImageBlock = {
+  type: "image";
+  source: {
+    data: string;
+    media_type: "image/png" | "image/jpeg" | "image/webp";
+    type: "base64";
+  };
+};
+
 type AnthropicResponse = {
   content?: AnthropicTextBlock[];
   error?: {
@@ -86,12 +98,24 @@ export class AnalysisProviderError extends Error {
 }
 
 function buildUserPrompt(prompt: string, source: InputMode) {
+  const normalizedPrompt = normalizePrompt(prompt, source);
+
   return `Input source: ${source}
 
 User content:
-"""${prompt.trim()}"""
+"""${normalizedPrompt}"""
 
 Return only the JSON object.`;
+}
+
+function normalizePrompt(prompt: string, source: InputMode) {
+  const collapsed = prompt.trim().replace(/\s+/g, " ");
+  const maxLength =
+    source === "screenshot" ? MAX_SCREENSHOT_PROMPT_CHARS : MAX_PROMPT_CHARS;
+
+  return collapsed.length > maxLength
+    ? `${collapsed.slice(0, maxLength - 1).trimEnd()}…`
+    : collapsed;
 }
 
 function extractJson(text: string) {
@@ -210,19 +234,23 @@ function normalizeAnalysisResponse(input: unknown): AnalysisResponse {
 async function fetchClaudeAnalysis(prompt: string, source: InputMode) {
   return fetchClaudeText({
     system: SYSTEM_PROMPT,
-    userContent: buildUserPrompt(prompt, source)
+    userContent: buildUserPrompt(prompt, source),
+    timeoutMs:
+      source === "screenshot" ? SCREENSHOT_PROVIDER_TIMEOUT_MS : DEFAULT_PROVIDER_TIMEOUT_MS
   });
 }
 
 async function fetchClaudeText({
   system,
-  userContent
+  userContent,
+  timeoutMs = DEFAULT_PROVIDER_TIMEOUT_MS
 }: {
   system: string;
-  userContent: string;
+  userContent: string | Array<AnthropicTextBlock | AnthropicImageBlock>;
+  timeoutMs?: number;
 }) {
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), PROVIDER_TIMEOUT_MS);
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
     const response = await fetch(ANTHROPIC_API_URL, {
@@ -311,6 +339,54 @@ export async function analyzeTextPrompt(
   }
 }
 
+export async function analyzeScreenshot({
+  fileBuffer,
+  mimeType,
+  note
+}: {
+  fileBuffer: ArrayBuffer;
+  mimeType: "image/png" | "image/jpeg" | "image/webp";
+  note?: string;
+}): Promise<AnalysisResponse> {
+  const base64Image = Buffer.from(fileBuffer).toString("base64");
+  const normalizedNote =
+    typeof note === "string" && note.trim().length > 0
+      ? trimToLength(note, 500, "")
+      : "";
+
+  const rawText = await fetchClaudeText({
+    system: SYSTEM_PROMPT,
+    timeoutMs: SCREENSHOT_PROVIDER_TIMEOUT_MS,
+    userContent: [
+      {
+        type: "text",
+        text: `Input source: screenshot
+
+Analyze the privacy notice, prompt, or consent interface shown in this image.
+${normalizedNote ? `\nOptional user note:\n"""${normalizedNote}"""\n` : ""}
+Return only the JSON object.`
+      },
+      {
+        type: "image",
+        source: {
+          type: "base64",
+          media_type: mimeType,
+          data: base64Image
+        }
+      }
+    ]
+  });
+
+  try {
+    const parsed = JSON.parse(extractJson(rawText)) as unknown;
+    return normalizeAnalysisResponse(parsed);
+  } catch {
+    throw new AnalysisProviderError(
+      "Claude returned a response that did not match the analysis schema."
+    );
+  }
+}
+
 export async function analyzeFollowUp({
   optionId,
   originalPrompt,
@@ -341,7 +417,8 @@ Return only the JSON object.`;
 
   const rawText = await fetchClaudeText({
     system: FOLLOW_UP_SYSTEM_PROMPT,
-    userContent
+    userContent,
+    timeoutMs: DEFAULT_PROVIDER_TIMEOUT_MS
   });
 
   try {
