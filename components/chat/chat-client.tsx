@@ -20,6 +20,12 @@ type Message =
       role: "assistant";
       analysis: AnalysisResponse;
       verdictAction?: VerdictAction;
+    }
+  | {
+      id: string;
+      role: "assistant_note";
+      title: string;
+      content: string;
     };
 
 const modeDescriptions: Record<InputMode, string> = {
@@ -89,6 +95,72 @@ export function ChatClient() {
         verdictAction
       }
     ]);
+  }
+
+  function appendAssistantNote(title: string, content: string) {
+    const timestamp = Date.now();
+
+    setMessages((current) => [
+      ...current,
+      {
+        id: `${timestamp}-assistant-note`,
+        role: "assistant_note",
+        title,
+        content
+      }
+    ]);
+  }
+
+  function getOriginalPrompt(messagesList: Message[], index: number, fallback: string) {
+    const previous = messagesList[index - 1];
+
+    if (previous && previous.role === "user") {
+      return previous.content;
+    }
+
+    return fallback;
+  }
+
+  async function submitFollowUp(
+    optionId: "dig_deeper" | "my_rights",
+    originalPrompt: string,
+    analysis: AnalysisResponse
+  ) {
+    setError("");
+    setIsGenerating(true);
+
+    try {
+      const response = await fetch("/api/analyze/follow-up", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          optionId,
+          originalPrompt,
+          summary: analysis.summary,
+          rationale: analysis.rationale,
+          recommendation: analysis.recommendation
+        })
+      });
+
+      const data = (await response.json()) as {
+        content?: string;
+        title?: string;
+        error?: string;
+      };
+
+      if (!response.ok || !data.content || !data.title) {
+        setError(data.error ?? "Follow-up analysis failed.");
+        return;
+      }
+
+      appendAssistantNote(data.title, data.content);
+    } catch {
+      setError("Unable to reach the follow-up analysis service.");
+    } finally {
+      setIsGenerating(false);
+    }
   }
 
   async function submitPrompt() {
@@ -208,6 +280,20 @@ export function ChatClient() {
     setPrompt("");
     setError("");
     setIsGenerating(false);
+    setActiveMode("text");
+  }
+
+  function handleUserOption(
+    optionId: "dig_deeper" | "my_rights" | "analyze_another",
+    originalPrompt: string,
+    analysis: AnalysisResponse
+  ) {
+    if (optionId === "analyze_another") {
+      resetConversation();
+      return;
+    }
+
+    void submitFollowUp(optionId, originalPrompt, analysis);
   }
 
   return (
@@ -249,10 +335,22 @@ export function ChatClient() {
             </div>
           ) : null}
 
-          {messages.map((message) =>
+          {messages.map((message, index) =>
             message.role === "user" ? (
               <div key={message.id} className="msg-row user">
                 <div className="bubble user">
+                  <p>{message.content}</p>
+                </div>
+              </div>
+            ) : message.role === "assistant_note" ? (
+              <div key={message.id} className="msg-row bot">
+                <div className="bot-avatar" aria-hidden="true">
+                  <div className="bot-avatar-shell">
+                    <ThroughlineLogo compact iconOnly />
+                  </div>
+                </div>
+                <div className="bubble bot analysis-bubble">
+                  <div className="welcome-intro">{message.title}</div>
                   <p>{message.content}</p>
                 </div>
               </div>
@@ -295,7 +393,18 @@ export function ChatClient() {
                     <p className="analysis-rationale">{message.analysis.rationale}</p>
                     <div className="response-actions">
                       {message.analysis.userOptions.map((option) => (
-                        <button key={option.id} className="action-btn" type="button">
+                        <button
+                          key={option.id}
+                          className="action-btn"
+                          type="button"
+                          onClick={() =>
+                            handleUserOption(
+                              option.id,
+                              getOriginalPrompt(messages, index, message.analysis.summary),
+                              message.analysis
+                            )
+                          }
+                        >
                           {option.label}
                         </button>
                       ))}

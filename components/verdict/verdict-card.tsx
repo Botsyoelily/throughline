@@ -1,5 +1,7 @@
 import type { AnalysisResponse, VerdictAction } from "@/lib/types";
 
+const ACTION_CONFIDENCE_THRESHOLD = 65;
+
 const verdictMeta: Record<
   AnalysisResponse["recommendation"],
   {
@@ -42,6 +44,27 @@ export function VerdictCard({
   onAction?: (action: VerdictAction) => void;
 }) {
   const meta = verdictMeta[analysis.recommendation];
+  const action =
+    analysis.recommendation === "decline" &&
+    analysis.confidence >= ACTION_CONFIDENCE_THRESHOLD
+      ? {
+          id: "decline" as const,
+          label: "Decline",
+          className: "btn-decline"
+        }
+      : analysis.recommendation === "safe_to_accept" &&
+          analysis.confidence >= ACTION_CONFIDENCE_THRESHOLD
+        ? {
+            id: "accept_anyway" as const,
+            label: "Accept",
+            className: "btn-accept"
+          }
+        : {
+            id: "override" as const,
+            label: "Override",
+            className: "btn-override"
+          };
+  const showLowConfidenceNote = action.id === "override";
 
   return (
     <section className={`verdict-card ${meta.cardClass}`} aria-label="Recommendation">
@@ -54,6 +77,9 @@ export function VerdictCard({
             <div className="verdict-recommendation">Throughline recommends</div>
             <div className="verdict-headline">{meta.headline}</div>
             <div className="verdict-sub">{meta.subline}</div>
+            {showLowConfidenceNote ? (
+              <div className="verdict-sub">Low-confidence recommendation · review manually</div>
+            ) : null}
           </div>
         </div>
         <div className="confidence-wrap">
@@ -69,31 +95,13 @@ export function VerdictCard({
       </div>
       <div className="verdict-actions">
         <button
-          className={`verdict-btn btn-decline ${
-            selectedAction === "decline" ? "active-verdict" : ""
+          className={`verdict-btn ${action.className} ${
+            selectedAction === action.id ? "active-verdict" : ""
           }`}
           type="button"
-          onClick={() => onAction?.("decline")}
+          onClick={() => onAction?.(action.id)}
         >
-          Decline
-        </button>
-        <button
-          className={`verdict-btn btn-accept ${
-            selectedAction === "accept_anyway" ? "active-verdict" : ""
-          }`}
-          type="button"
-          onClick={() => onAction?.("accept_anyway")}
-        >
-          Accept anyway
-        </button>
-        <button
-          className={`verdict-btn btn-override ${
-            selectedAction === "override" ? "active-verdict" : ""
-          }`}
-          type="button"
-          onClick={() => onAction?.("override")}
-        >
-          Override
+          {action.label}
         </button>
       </div>
     </section>

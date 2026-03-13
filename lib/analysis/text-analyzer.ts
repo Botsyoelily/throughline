@@ -1,5 +1,10 @@
 import { getAnthropicApiKey, getAnthropicModel } from "@/lib/security/env";
-import type { AnalysisResponse, InputMode } from "@/lib/types";
+import type {
+  AnalysisResponse,
+  InputMode,
+  Recommendation,
+  UserOption
+} from "@/lib/types";
 import { analysisResponseSchema } from "@/lib/validation/analysis";
 
 const ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages";
@@ -36,6 +41,23 @@ Schema:
   ]
 }`;
 
+const FOLLOW_UP_SYSTEM_PROMPT = `You are Throughline, a privacy guidance assistant.
+
+Return a JSON object only with this exact shape:
+{
+  "title": string,
+  "content": string
+}
+
+Requirements:
+- No markdown.
+- No prose outside the JSON object.
+- Be concrete and practical.
+- Keep title under 60 characters.
+- Keep content under 500 characters.
+- If the follow-up is "dig_deeper", explain what to inspect next in this specific privacy request.
+- If the follow-up is "my_rights", explain the likely user rights and controls relevant to this request in plain language without legal overclaiming.`;
+
 type AnthropicTextBlock = {
   type: "text";
   text: string;
@@ -46,6 +68,11 @@ type AnthropicResponse = {
   error?: {
     message?: string;
   };
+};
+
+type FollowUpResponse = {
+  content: string;
+  title: string;
 };
 
 export class AnalysisProviderError extends Error {
@@ -79,7 +106,121 @@ function extractJson(text: string) {
   return trimmed.slice(firstBrace, lastBrace + 1);
 }
 
+function trimToLength(value: unknown, max: number, fallback: string) {
+  if (typeof value !== "string") {
+    return fallback;
+  }
+
+  const trimmed = value.trim().replace(/\s+/g, " ");
+  return trimmed.length > max ? `${trimmed.slice(0, max - 1).trimEnd()}…` : trimmed;
+}
+
+function normalizeRecommendation(value: unknown): Recommendation {
+  if (value === "decline" || value === "accept_with_caution" || value === "safe_to_accept") {
+    return value;
+  }
+
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase().replace(/[\s-]+/g, "_");
+
+    if (normalized.includes("caution")) {
+      return "accept_with_caution";
+    }
+
+    if (normalized.includes("safe") || normalized.includes("accept")) {
+      return "safe_to_accept";
+    }
+  }
+
+  return "accept_with_caution";
+}
+
+function normalizeConfidence(value: unknown) {
+  const numeric =
+    typeof value === "number"
+      ? value
+      : typeof value === "string"
+        ? Number.parseInt(value, 10)
+        : 70;
+
+  if (!Number.isFinite(numeric)) {
+    return 70;
+  }
+
+  return Math.max(0, Math.min(100, Math.round(numeric)));
+}
+
+function normalizeUserOptions(): UserOption[] {
+  return [
+    { id: "dig_deeper", label: "Dig deeper" },
+    { id: "my_rights", label: "My rights" },
+    { id: "analyze_another", label: "Analyze another" }
+  ];
+}
+
+function normalizeAnalysisResponse(input: unknown): AnalysisResponse {
+  const raw = typeof input === "object" && input !== null ? (input as Record<string, unknown>) : {};
+  const impacts =
+    typeof raw.impacts === "object" && raw.impacts !== null
+      ? (raw.impacts as Record<string, unknown>)
+      : {};
+
+  const recommendation = normalizeRecommendation(raw.recommendation);
+
+  const normalized: AnalysisResponse = {
+    summary: trimToLength(
+      raw.summary,
+      350,
+      "This privacy request changes how your data may be used, so it should be reviewed carefully before you continue."
+    ),
+    recommendation,
+    rationale: trimToLength(
+      raw.rationale,
+      220,
+      recommendation === "decline"
+        ? "The request appears broader than necessary for the feature being offered."
+        : recommendation === "safe_to_accept"
+          ? "The request appears closer to a core product or security function."
+          : "The request presents a meaningful privacy tradeoff that should be accepted deliberately."
+    ),
+    confidence: normalizeConfidence(raw.confidence),
+    impacts: {
+      immediate: trimToLength(
+        impacts.immediate,
+        180,
+        "Granting this request would change what the service can collect or infer right away."
+      ),
+      shortTerm: trimToLength(
+        impacts.shortTerm,
+        180,
+        "The collected data may soon affect personalization, analytics, sharing, or product behavior."
+      ),
+      longTerm: trimToLength(
+        impacts.longTerm,
+        180,
+        "Over time, repeated collection can increase exposure through retention, reuse, or profiling."
+      )
+    },
+    userOptions: normalizeUserOptions()
+  };
+
+  return analysisResponseSchema.parse(normalized);
+}
+
 async function fetchClaudeAnalysis(prompt: string, source: InputMode) {
+  return fetchClaudeText({
+    system: SYSTEM_PROMPT,
+    userContent: buildUserPrompt(prompt, source)
+  });
+}
+
+async function fetchClaudeText({
+  system,
+  userContent
+}: {
+  system: string;
+  userContent: string;
+}) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), PROVIDER_TIMEOUT_MS);
 
@@ -95,11 +236,11 @@ async function fetchClaudeAnalysis(prompt: string, source: InputMode) {
         model: getAnthropicModel(),
         max_tokens: 700,
         temperature: 0,
-        system: SYSTEM_PROMPT,
+        system,
         messages: [
           {
             role: "user",
-            content: buildUserPrompt(prompt, source)
+            content: userContent
           }
         ]
       }),
@@ -141,6 +282,19 @@ async function fetchClaudeAnalysis(prompt: string, source: InputMode) {
   }
 }
 
+function normalizeFollowUpResponse(input: unknown, fallbackTitle: string): FollowUpResponse {
+  const raw = typeof input === "object" && input !== null ? (input as Record<string, unknown>) : {};
+
+  return {
+    title: trimToLength(raw.title, 60, fallbackTitle),
+    content: trimToLength(
+      raw.content,
+      500,
+      "Review the request carefully, inspect the privacy notice, and compare the requested data use against the feature you are actually trying to use."
+    )
+  };
+}
+
 export async function analyzeTextPrompt(
   prompt: string,
   source: InputMode
@@ -149,10 +303,53 @@ export async function analyzeTextPrompt(
 
   try {
     const parsed = JSON.parse(extractJson(rawText)) as unknown;
-    return analysisResponseSchema.parse(parsed);
+    return normalizeAnalysisResponse(parsed);
   } catch {
     throw new AnalysisProviderError(
       "Claude returned a response that did not match the analysis schema."
+    );
+  }
+}
+
+export async function analyzeFollowUp({
+  optionId,
+  originalPrompt,
+  summary,
+  rationale,
+  recommendation
+}: {
+  optionId: "dig_deeper" | "my_rights";
+  originalPrompt: string;
+  summary: string;
+  rationale: string;
+  recommendation: Recommendation;
+}): Promise<FollowUpResponse> {
+  const fallbackTitle = optionId === "dig_deeper" ? "Dig Deeper" : "My Rights";
+  const userContent = `Follow-up type: ${optionId}
+
+Original privacy request:
+"""${originalPrompt.trim()}"""
+
+Current Throughline summary:
+"""${summary.trim()}"""
+
+Current recommendation: ${recommendation}
+Current rationale:
+"""${rationale.trim()}"""
+
+Return only the JSON object.`;
+
+  const rawText = await fetchClaudeText({
+    system: FOLLOW_UP_SYSTEM_PROMPT,
+    userContent
+  });
+
+  try {
+    const parsed = JSON.parse(extractJson(rawText)) as unknown;
+    return normalizeFollowUpResponse(parsed, fallbackTitle);
+  } catch {
+    throw new AnalysisProviderError(
+      "Claude returned a response that did not match the follow-up schema."
     );
   }
 }

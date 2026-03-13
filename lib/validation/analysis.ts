@@ -4,6 +4,14 @@ export const analysisRequestSchema = z.object({
   prompt: z.string().trim().min(10).max(2000)
 });
 
+export const followUpRequestSchema = z.object({
+  optionId: z.enum(["dig_deeper", "my_rights", "analyze_another"]),
+  originalPrompt: z.string().trim().min(10).max(2000),
+  summary: z.string().trim().min(10).max(350),
+  rationale: z.string().trim().min(10).max(220),
+  recommendation: z.enum(["decline", "accept_with_caution", "safe_to_accept"])
+});
+
 export const analysisResponseSchema = z.object({
   summary: z.string().trim().min(20).max(350),
   recommendation: z.enum(["decline", "accept_with_caution", "safe_to_accept"]),
@@ -23,4 +31,3 @@ export const analysisResponseSchema = z.object({
     )
     .length(3)
 });
-
