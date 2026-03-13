@@ -1,125 +1,158 @@
-import type { AnalysisResponse, Recommendation } from "@/lib/types";
+import { getAnthropicApiKey, getAnthropicModel } from "@/lib/security/env";
+import type { AnalysisResponse, InputMode } from "@/lib/types";
 import { analysisResponseSchema } from "@/lib/validation/analysis";
 
-const highRiskKeywords = [
-  "track",
-  "tracking",
-  "third-party",
-  "sell",
-  "share",
-  "partner",
-  "ads",
-  "advertising",
-  "biometric"
-];
+const ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages";
+const ANTHROPIC_VERSION = "2023-06-01";
+const PROVIDER_TIMEOUT_MS = 20_000;
 
-const mediumRiskKeywords = [
-  "location",
-  "camera",
-  "microphone",
-  "contacts",
-  "photos",
-  "cookies",
-  "analytics",
-  "personalize",
-  "background"
-];
+const SYSTEM_PROMPT = `You are Throughline, a privacy nudge analysis engine.
 
-const safeKeywords = ["security", "fraud", "authentication", "login", "essential"];
+Your job is to evaluate a privacy request, permission prompt, cookie notice, or policy excerpt and return a strict JSON object only.
 
-function scorePrompt(prompt: string) {
-  const text = prompt.toLowerCase();
+Requirements:
+- Analyze the user's input through a PNSA lens.
+- Be concrete and specific to the supplied prompt.
+- Do not mention being an AI model.
+- Never output markdown.
+- Never output prose outside the JSON object.
+- Keep output concise and within the schema limits.
 
-  let score = 45;
+Schema:
+{
+  "summary": string,
+  "recommendation": "decline" | "accept_with_caution" | "safe_to_accept",
+  "rationale": string,
+  "confidence": integer from 0 to 100,
+  "impacts": {
+    "immediate": string,
+    "shortTerm": string,
+    "longTerm": string
+  },
+  "userOptions": [
+    { "id": "dig_deeper", "label": "Dig deeper" },
+    { "id": "my_rights", "label": "My rights" },
+    { "id": "analyze_another", "label": "Analyze another" }
+  ]
+}`;
 
-  for (const keyword of highRiskKeywords) {
-    if (text.includes(keyword)) {
-      score += 18;
+type AnthropicTextBlock = {
+  type: "text";
+  text: string;
+};
+
+type AnthropicResponse = {
+  content?: AnthropicTextBlock[];
+  error?: {
+    message?: string;
+  };
+};
+
+export class AnalysisProviderError extends Error {
+  statusCode: number;
+
+  constructor(message: string, statusCode = 502) {
+    super(message);
+    this.name = "AnalysisProviderError";
+    this.statusCode = statusCode;
+  }
+}
+
+function buildUserPrompt(prompt: string, source: InputMode) {
+  return `Input source: ${source}
+
+User content:
+"""${prompt.trim()}"""
+
+Return only the JSON object.`;
+}
+
+function extractJson(text: string) {
+  const trimmed = text.trim();
+  const firstBrace = trimmed.indexOf("{");
+  const lastBrace = trimmed.lastIndexOf("}");
+
+  if (firstBrace === -1 || lastBrace === -1 || lastBrace <= firstBrace) {
+    throw new AnalysisProviderError("Model response did not include valid JSON.");
+  }
+
+  return trimmed.slice(firstBrace, lastBrace + 1);
+}
+
+async function fetchClaudeAnalysis(prompt: string, source: InputMode) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), PROVIDER_TIMEOUT_MS);
+
+  try {
+    const response = await fetch(ANTHROPIC_API_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": getAnthropicApiKey(),
+        "anthropic-version": ANTHROPIC_VERSION
+      },
+      body: JSON.stringify({
+        model: getAnthropicModel(),
+        max_tokens: 700,
+        temperature: 0,
+        system: SYSTEM_PROMPT,
+        messages: [
+          {
+            role: "user",
+            content: buildUserPrompt(prompt, source)
+          }
+        ]
+      }),
+      signal: controller.signal
+    });
+
+    const payload = (await response.json()) as AnthropicResponse;
+
+    if (!response.ok) {
+      throw new AnalysisProviderError(
+        payload.error?.message || "Claude analysis request failed.",
+        response.status >= 500 ? 502 : response.status
+      );
     }
-  }
 
-  for (const keyword of mediumRiskKeywords) {
-    if (text.includes(keyword)) {
-      score += 10;
+    const text = payload.content
+      ?.filter((block) => block.type === "text")
+      .map((block) => block.text)
+      .join("\n")
+      .trim();
+
+    if (!text) {
+      throw new AnalysisProviderError("Claude returned an empty analysis response.");
     }
-  }
 
-  for (const keyword of safeKeywords) {
-    if (text.includes(keyword)) {
-      score -= 12;
+    return text;
+  } catch (error) {
+    if (error instanceof AnalysisProviderError) {
+      throw error;
     }
-  }
 
-  return Math.max(5, Math.min(score, 95));
-}
+    if (error instanceof Error && error.name === "AbortError") {
+      throw new AnalysisProviderError("Claude analysis timed out.", 504);
+    }
 
-function recommendationForScore(score: number): Recommendation {
-  if (score >= 70) {
-    return "decline";
-  }
-
-  if (score >= 45) {
-    return "accept_with_caution";
-  }
-
-  return "safe_to_accept";
-}
-
-function rationaleForRecommendation(recommendation: Recommendation) {
-  switch (recommendation) {
-    case "decline":
-      return "The request appears broader than necessary and likely enables avoidable data sharing or profiling.";
-    case "accept_with_caution":
-      return "The request may support a useful feature, but it also introduces meaningful privacy tradeoffs.";
-    case "safe_to_accept":
-      return "The request looks closer to functional or security-related use than broad secondary data use.";
+    throw new AnalysisProviderError("Unable to reach Claude.", 503);
+  } finally {
+    clearTimeout(timeout);
   }
 }
 
-function summaryForRecommendation(recommendation: Recommendation, prompt: string) {
-  const shortenedPrompt = prompt.trim().replace(/\s+/g, " ").slice(0, 120);
+export async function analyzeTextPrompt(
+  prompt: string,
+  source: InputMode
+): Promise<AnalysisResponse> {
+  const rawText = await fetchClaudeAnalysis(prompt, source);
 
-  switch (recommendation) {
-    case "decline":
-      return `This request likely expands data use beyond the immediate feature being offered. Accepting may unlock convenience, but it also increases tracking, sharing, or profiling linked to: "${shortenedPrompt}".`;
-    case "accept_with_caution":
-      return `This request may support a real product feature, but it also widens how your data can be observed or reused. The tradeoff is not necessarily unsafe, but it should be accepted deliberately for: "${shortenedPrompt}".`;
-    case "safe_to_accept":
-      return `This request appears tied to a core function or security need rather than broad downstream reuse. It still deserves review, but it presents a lower privacy risk in the context provided: "${shortenedPrompt}".`;
+  try {
+    const parsed = JSON.parse(extractJson(rawText)) as unknown;
+    return analysisResponseSchema.parse(parsed);
+  } catch {
+    throw new AnalysisProviderError(
+      "Claude returned a response that did not match the analysis schema."
+    );
   }
 }
-
-export function analyzeTextPrompt(prompt: string): AnalysisResponse {
-  const score = scorePrompt(prompt);
-  const recommendation = recommendationForScore(score);
-  const confidence = recommendation === "decline" ? Math.min(score + 4, 96) : 100 - Math.abs(50 - score);
-
-  const response = {
-    summary: summaryForRecommendation(recommendation, prompt),
-    recommendation,
-    rationale: rationaleForRecommendation(recommendation),
-    confidence,
-    impacts: {
-      immediate:
-        recommendation === "safe_to_accept"
-          ? "The permission mainly affects the feature you are actively trying to use."
-          : "Granting this request changes what the service can collect or infer right away.",
-      shortTerm:
-        recommendation === "decline"
-          ? "The collected data can shape personalization, targeting, or internal sharing soon after consent."
-          : "The service may begin using the data to refine features, analytics, or personalization over the next sessions.",
-      longTerm:
-        recommendation === "decline"
-          ? "Over time, repeated collection can build a fuller profile that is harder to unwind later."
-          : "Longer-term impact depends on retention, reuse, and whether the data stays tied to your account."
-    },
-    userOptions: [
-      { id: "dig_deeper", label: "Dig deeper" },
-      { id: "my_rights", label: "My rights" },
-      { id: "analyze_another", label: "Analyze another" }
-    ]
-  } satisfies AnalysisResponse;
-
-  return analysisResponseSchema.parse(response);
-}
-

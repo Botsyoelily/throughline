@@ -1,15 +1,15 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { GeneratingIndicator } from "@/components/brand/generating-indicator";
 import { ScreenshotUploader } from "@/components/chat/screenshot-uploader";
 import { VoiceRecorder } from "@/components/chat/voice-recorder";
+import { ThroughlineLogo } from "@/components/brand/throughline-logo";
 import { VerdictCard } from "@/components/verdict/verdict-card";
 import type {
   AnalysisResponse,
   InputMode,
-  StoredAnalysisClient,
   VerdictAction
 } from "@/lib/types";
 
@@ -19,7 +19,6 @@ type Message =
       id: string;
       role: "assistant";
       analysis: AnalysisResponse;
-      analysisId?: string;
       verdictAction?: VerdictAction;
     };
 
@@ -31,32 +30,41 @@ const modeDescriptions: Record<InputMode, string> = {
     "Record a voice description of the prompt. Your browser transcript is sent through the same secure analysis flow."
 };
 
+const tierMeta = [
+  {
+    key: "immediate" as const,
+    className: "perception",
+    badge: "Level 1",
+    label: "Perception",
+    phase: "What is visible now?"
+  },
+  {
+    key: "shortTerm" as const,
+    className: "comprehension",
+    badge: "Level 2",
+    label: "Comprehension",
+    phase: "What does it mean in context?"
+  },
+  {
+    key: "longTerm" as const,
+    className: "projection",
+    badge: "Level 3",
+    label: "Projection",
+    phase: "Where does this lead over time?"
+  }
+];
+
 export function ChatClient() {
   const [activeMode, setActiveMode] = useState<InputMode>("text");
   const [prompt, setPrompt] = useState("");
   const [messages, setMessages] = useState<Message[]>([]);
-  const [history, setHistory] = useState<StoredAnalysisClient[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState("");
+  const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
-    void loadHistory();
-  }, []);
-
-  async function loadHistory() {
-    try {
-      const response = await fetch("/api/analyses");
-
-      if (!response.ok) {
-        return;
-      }
-
-      const data = (await response.json()) as { analyses: StoredAnalysisClient[] };
-      setHistory(data.analyses);
-    } catch {
-      // Keep the interface usable even if history cannot be loaded.
-    }
-  }
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+  }, [messages, isGenerating]);
 
   function appendAnalysisMessages(
     userContent: string,
@@ -78,7 +86,6 @@ export function ChatClient() {
         id: `${timestamp}-assistant`,
         role: "assistant",
         analysis,
-        analysisId: analysis.id,
         verdictAction
       }
     ]);
@@ -113,7 +120,6 @@ export function ChatClient() {
       }
 
       appendAnalysisMessages(trimmed, "text", data);
-      await loadHistory();
     } catch {
       setError("Unable to reach the analysis service.");
     } finally {
@@ -141,7 +147,6 @@ export function ChatClient() {
       }
 
       appendAnalysisMessages(transcript, "voice", data);
-      await loadHistory();
       setActiveMode("text");
     } catch {
       setError("Unable to reach the voice analysis service.");
@@ -180,7 +185,6 @@ export function ChatClient() {
       }
 
       appendAnalysisMessages(extractedText || note || file.name, "screenshot", data);
-      await loadHistory();
       setActiveMode("text");
     } catch {
       setError("Unable to reach the screenshot analysis service.");
@@ -189,32 +193,14 @@ export function ChatClient() {
     }
   }
 
-  async function submitVerdictAction(analysisId: string, action: VerdictAction) {
-    try {
-      const response = await fetch("/api/verdict-action", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({ analysisId, action })
-      });
-
-      if (!response.ok) {
-        setError("Unable to save your verdict choice.");
-        return;
-      }
-
-      setMessages((current) =>
-        current.map((message) =>
-          message.role === "assistant" && message.analysisId === analysisId
-            ? { ...message, verdictAction: action }
-            : message
-        )
-      );
-      await loadHistory();
-    } catch {
-      setError("Unable to save your verdict choice.");
-    }
+  function selectVerdict(messageId: string, action: VerdictAction) {
+    setMessages((current) =>
+      current.map((message) =>
+        message.role === "assistant" && message.id === messageId
+          ? { ...message, verdictAction: action }
+          : message
+      )
+    );
   }
 
   function resetConversation() {
@@ -225,115 +211,124 @@ export function ChatClient() {
   }
 
   return (
-    <main className="chat-shell">
-      <aside className="glass-panel sidebar">
-        <div>
-          <p className="eyebrow">Recent analyses</p>
-          <ul className="history-list">
-            {history.slice(0, 5).map((item) => (
-              <li key={item.id}>
-                <span className="history-source">{item.source}</span>
-                {item.prompt}
-              </li>
-            ))}
-          </ul>
-        </div>
-        <div className="projection-score">
-          <p className="eyebrow">Projection score</p>
-          <strong>3.69 baseline</strong>
-          <p className="muted">
-            Track whether Throughline improves consequence awareness.
-          </p>
-        </div>
-      </aside>
-
-      <section className="workspace">
-        <header className="workspace-header glass-panel">
-          <div>
-            <p className="eyebrow">Active analysis</p>
-            <h1>Understand what happens after you click</h1>
-          </div>
-          <button
-            type="button"
-            className="secondary-button"
-            onClick={resetConversation}
-          >
-            New analysis
-          </button>
-        </header>
-
-        <section className="message-list">
+    <main className="chat-body">
+      <section className="chat-main">
+        <div className="messages-area">
           {messages.length === 0 ? (
-            <article className="glass-panel analysis-card empty-state">
-              <p className="eyebrow">Start here</p>
-              <h2>
-                Submit text, a screenshot, or a voice description and Throughline
-                will project the likely privacy consequences.
-              </h2>
-              <p className="muted">
-                Text, screenshot, and voice analysis are now connected to the
-                same secure session-scoped backend flow.
-              </p>
-            </article>
+            <div className="msg-row bot">
+              <div className="bot-avatar" aria-hidden="true">
+                <div className="bot-avatar-shell">
+                  <ThroughlineLogo compact iconOnly />
+                </div>
+              </div>
+              <div className="bubble bot">
+                <div className="welcome-intro">Hi — I&apos;m Throughline.</div>
+                Paste a privacy notice, upload a screenshot, or describe what you
+                saw. I&apos;ll analyse it through the <strong>PNSA framework</strong>
+                , mapping what the nudge reveals and hides across three levels of
+                situational awareness, and give you a clear verdict.
+                <ul className="welcome-list">
+                  <li>
+                    <strong>Level 1 · Perception</strong> what is the notice
+                    actually doing right now?
+                  </li>
+                  <li>
+                    <strong>Level 2 · Comprehension</strong> what do those facts
+                    mean in context?
+                  </li>
+                  <li>
+                    <strong>Level 3 · Projection</strong> where does this
+                    trajectory lead over time?
+                  </li>
+                  <li>Benchmarked against GDPR and CCPA disclosure requirements</li>
+                </ul>
+                <div className="welcome-cta">
+                  Choose an input method below or just start typing.
+                </div>
+              </div>
+            </div>
           ) : null}
 
           {messages.map((message) =>
             message.role === "user" ? (
-              <article key={message.id} className="message user-message">
-                <p>{message.content}</p>
-              </article>
+              <div key={message.id} className="msg-row user">
+                <div className="bubble user">
+                  <p>{message.content}</p>
+                </div>
+              </div>
             ) : (
-              <article key={message.id} className="message assistant-message">
-                <VerdictCard
-                  analysis={message.analysis}
-                  selectedAction={message.verdictAction}
-                  onAction={
-                    message.analysisId
-                      ? (action) => submitVerdictAction(message.analysisId!, action)
-                      : undefined
-                  }
-                />
-                <div className="glass-panel analysis-card">
-                  <p className="assistant-summary">{message.analysis.summary}</p>
-                  <div className="impact-grid">
-                    <div>
-                      <h3>Immediate</h3>
-                      <p>{message.analysis.impacts.immediate}</p>
-                    </div>
-                    <div>
-                      <h3>Short-term</h3>
-                      <p>{message.analysis.impacts.shortTerm}</p>
-                    </div>
-                    <div>
-                      <h3>Long-term</h3>
-                      <p>{message.analysis.impacts.longTerm}</p>
-                    </div>
-                  </div>
-                  <div className="follow-up-row">
-                    {message.analysis.userOptions.map((option) => (
-                      <button
-                        key={option.id}
-                        className="secondary-button"
-                        type="button"
-                      >
-                        {option.label}
-                      </button>
-                    ))}
+              <div key={message.id} className="msg-row bot">
+                <div className="bot-avatar" aria-hidden="true">
+                  <div className="bot-avatar-shell">
+                    <ThroughlineLogo compact iconOnly />
                   </div>
                 </div>
-              </article>
+                <div className="assistant-response">
+                  <VerdictCard
+                    analysis={message.analysis}
+                    selectedAction={message.verdictAction}
+                    onAction={(action) => selectVerdict(message.id, action)}
+                  />
+                  <div className="bubble bot analysis-bubble">
+                    <div className="analysis-divider">
+                      <div className="analysis-divider-line" />
+                      <div className="analysis-divider-text">
+                        PNSA Consequence Analysis
+                      </div>
+                      <div className="analysis-divider-line" />
+                    </div>
+                    <div className="asymmetry-badge">Information asymmetry detected</div>
+                    <p className="assistant-summary">{message.analysis.summary}</p>
+                    <div className="tiers">
+                      {tierMeta.map((tier) => (
+                        <div key={tier.key} className={`tier ${tier.className}`}>
+                          <div className="tier-sa-badge">{tier.badge}</div>
+                          <div className="tier-label">{tier.label}</div>
+                          <div className="tier-phase">{tier.phase}</div>
+                          <div className="tier-divider" />
+                          <p className="tier-text">
+                            {message.analysis.impacts[tier.key]}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                    <p className="analysis-rationale">{message.analysis.rationale}</p>
+                    <div className="response-actions">
+                      {message.analysis.userOptions.map((option) => (
+                        <button key={option.id} className="action-btn" type="button">
+                          {option.label}
+                        </button>
+                      ))}
+                      <button className="react-btn" type="button" aria-label="Helpful">
+                        +
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
             )
           )}
 
           {isGenerating ? <GeneratingIndicator /> : null}
-        </section>
+          <div ref={messagesEndRef} />
+        </div>
 
-        <section className="glass-panel input-tabs">
-          <div className="pill-row" role="tablist" aria-label="Input modes">
+        <section className="input-bar">
+          <div className="input-bar-header">
+            <button
+              type="button"
+              className="new-analysis-btn"
+              onClick={resetConversation}
+            >
+              + New Analysis
+            </button>
+            <div className="nav-tag subtle">Nothing is stored after your session ends</div>
+          </div>
+          <div className="mode-row" role="tablist" aria-label="Input modes">
             {(["text", "screenshot", "voice"] as InputMode[]).map((mode) => (
               <button
                 key={mode}
-                className={mode === activeMode ? "pill active" : "pill"}
+                className={mode === activeMode ? "mode-pill active" : "mode-pill"}
                 type="button"
                 role="tab"
                 aria-selected={mode === activeMode}
@@ -343,53 +338,58 @@ export function ChatClient() {
               </button>
             ))}
           </div>
-
-          <p className="muted">{modeDescriptions[activeMode]}</p>
+          <p className="input-description">{modeDescriptions[activeMode]}</p>
 
           {activeMode === "text" ? (
-            <div className="composer">
+            <div className="input-panel visible">
               <textarea
+                className="text-field"
                 placeholder="What is this app asking for, and should I accept it?"
-                rows={4}
+                rows={1}
                 value={prompt}
                 onChange={(event) => setPrompt(event.target.value)}
               />
-              <div className="composer-actions">
+              <div className="input-actions">
                 <button
                   type="button"
-                  className="secondary-button"
+                  className="mode-pill"
                   onClick={() =>
                     setPrompt(
                       "This app wants my location all the time so it can personalize nearby offers and share analytics with partners."
                     )
                   }
                 >
-                  Try sample prompt
+                  Sample
                 </button>
                 <button
                   type="button"
-                  className="primary-button"
+                  className="send-btn"
                   onClick={submitPrompt}
                   disabled={isGenerating}
+                  aria-label={isGenerating ? "Analyzing" : "Analyze request"}
                 >
-                  {isGenerating ? "Analyzing..." : "Analyze request"}
+                  →
                 </button>
               </div>
             </div>
           ) : null}
 
           {activeMode === "screenshot" ? (
-            <ScreenshotUploader
-              disabled={isGenerating}
-              onSubmit={submitScreenshotAnalysis}
-            />
+            <div className="input-panel visible">
+              <ScreenshotUploader
+                disabled={isGenerating}
+                onSubmit={submitScreenshotAnalysis}
+              />
+            </div>
           ) : null}
 
           {activeMode === "voice" ? (
-            <VoiceRecorder
-              disabled={isGenerating}
-              onSubmit={submitVoiceTranscript}
-            />
+            <div className="input-panel visible">
+              <VoiceRecorder
+                disabled={isGenerating}
+                onSubmit={submitVoiceTranscript}
+              />
+            </div>
           ) : null}
 
           {error ? (

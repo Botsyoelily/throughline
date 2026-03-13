@@ -1,13 +1,8 @@
 import { NextResponse } from "next/server";
 
-import { analyzeTextPrompt } from "@/lib/analysis/text-analyzer";
+import { AnalysisProviderError, analyzeTextPrompt } from "@/lib/analysis/text-analyzer";
 import { ensureSameOrigin } from "@/lib/security/origin";
-import {
-  getSessionKey,
-  getValidatedSessionToken,
-  unauthorizedResponse
-} from "@/lib/security/request-session";
-import { saveAnalysis } from "@/lib/storage/analysis-store";
+import { getValidatedSessionToken, unauthorizedResponse } from "@/lib/security/request-session";
 import { analysisRequestSchema } from "@/lib/validation/analysis";
 
 export async function POST(request: Request) {
@@ -32,13 +27,17 @@ export async function POST(request: Request) {
     );
   }
 
-  const analysis = analyzeTextPrompt(payload.data.prompt);
-  const saved = await saveAnalysis({
-    sessionKey: getSessionKey(sessionToken),
-    source: "text",
-    prompt: payload.data.prompt,
-    analysis
-  });
+  try {
+    const analysis = await analyzeTextPrompt(payload.data.prompt, "text");
+    return NextResponse.json({ ...analysis, source: "text" });
+  } catch (error) {
+    if (error instanceof AnalysisProviderError) {
+      return NextResponse.json({ error: error.message }, { status: error.statusCode });
+    }
 
-  return NextResponse.json({ ...saved.analysis, id: saved.id, source: saved.source });
+    return NextResponse.json(
+      { error: "Unexpected analysis failure." },
+      { status: 500 }
+    );
+  }
 }

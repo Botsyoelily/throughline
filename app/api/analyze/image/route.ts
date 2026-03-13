@@ -1,13 +1,8 @@
 import { NextResponse } from "next/server";
 
-import { analyzeTextPrompt } from "@/lib/analysis/text-analyzer";
+import { AnalysisProviderError, analyzeTextPrompt } from "@/lib/analysis/text-analyzer";
 import { ensureSameOrigin } from "@/lib/security/origin";
-import {
-  getSessionKey,
-  getValidatedSessionToken,
-  unauthorizedResponse
-} from "@/lib/security/request-session";
-import { saveAnalysis } from "@/lib/storage/analysis-store";
+import { getValidatedSessionToken, unauthorizedResponse } from "@/lib/security/request-session";
 
 const MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024;
 const allowedTypes = new Set(["image/png", "image/jpeg", "image/webp"]);
@@ -94,14 +89,18 @@ export async function POST(request: Request) {
     );
   }
 
-  const normalizedPrompt = `Screenshot prompt: ${candidateText}`;
-  const analysis = analyzeTextPrompt(normalizedPrompt);
-  const saved = await saveAnalysis({
-    sessionKey: getSessionKey(sessionToken),
-    source: "image",
-    prompt: candidateText,
-    analysis
-  });
+  try {
+    const normalizedPrompt = `Screenshot prompt: ${candidateText}`;
+    const analysis = await analyzeTextPrompt(normalizedPrompt, "screenshot");
+    return NextResponse.json({ ...analysis, source: "image" });
+  } catch (error) {
+    if (error instanceof AnalysisProviderError) {
+      return NextResponse.json({ error: error.message }, { status: error.statusCode });
+    }
 
-  return NextResponse.json({ ...saved.analysis, id: saved.id, source: saved.source });
+    return NextResponse.json(
+      { error: "Unexpected analysis failure." },
+      { status: 500 }
+    );
+  }
 }

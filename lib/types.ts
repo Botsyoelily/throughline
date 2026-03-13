@@ -11,7 +11,6 @@ export type UserOption = {
 };
 
 export type AnalysisResponse = {
-  id?: string;
   source?: "text" | "image" | "voice";
   summary: string;
   recommendation: Recommendation;
@@ -26,12 +25,3 @@ export type AnalysisResponse = {
 };
 
 export type VerdictAction = "decline" | "accept_anyway" | "override";
-
-export type StoredAnalysisClient = {
-  id: string;
-  prompt: string;
-  source: "text" | "image" | "voice";
-  createdAt: string;
-  verdictAction?: VerdictAction;
-  analysis: AnalysisResponse;
-};

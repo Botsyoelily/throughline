@@ -35,11 +35,12 @@ The app server is the trust boundary. It is responsible for:
 
 ### Persistence Layer
 
-Planned persistent storage:
+Current retention policy:
 
-- `Postgres` for users, sessions, analyses, and verdict actions
-- object storage for uploaded screenshots if retention is required
-- optional `Redis` for rate limiting and short-lived job state
+- do not persist prompts, analyses, screenshots, transcripts, or verdict actions
+- keep conversation state only in active browser memory for the current page session
+- allow external provider processing only for live analysis requests
+- use short-lived session cookies only for access control, not history retention
 
 ## Suggested Request Flow
 
@@ -49,8 +50,8 @@ Planned persistent storage:
 4. The app server validates the input and normalizes it into analysis content.
 5. The analysis service builds a structured prompt and requests a model response.
 6. The model output is validated against a strict schema.
-7. The server stores a minimal analysis record and returns the validated result.
-8. The client renders the response, verdict card, and follow-up actions.
+7. The server returns the validated result without persisting the analysis payload.
+8. The client renders the response, verdict card, and follow-up actions in session memory only.
 
 ## Response Contract
 
@@ -111,4 +112,3 @@ This reduces UI ambiguity and makes prompt injection less likely to alter front-
 - keep secrets in platform-managed environment variables
 - enable dependency scanning and branch protection
 - run lint, typecheck, tests, and security checks in CI
-

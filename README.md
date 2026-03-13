@@ -8,8 +8,8 @@ Throughline is a privacy nudge copilot that helps users understand the downstrea
 - accepts privacy prompts as text, screenshot, or voice transcript
 - returns a concise consequence summary plus a recommendation
 - shows immediate, short-term, and long-term impacts
-- lets the user record a verdict action: `Decline`, `Accept anyway`, or `Override`
-- stores analysis history per session locally during development
+- lets the user choose a verdict action locally in the current browser session
+- stores no analysis history, verdict history, or prompt data after the session ends
 
 ## Stack
 
@@ -38,6 +38,11 @@ Required variables:
 
 - `THROUGHLINE_ACCESS_TOKEN`
 - `THROUGHLINE_SESSION_SECRET`
+- `ANTHROPIC_API_KEY`
+
+Optional variable:
+
+- `ANTHROPIC_MODEL` to override the default Claude model
 
 If you do not set them in development, the app falls back to:
 
@@ -45,6 +50,7 @@ If you do not set them in development, the app falls back to:
 - session secret: local development default only
 
 Do not use the development fallback in production.
+There is no development fallback for Claude credentials.
 
 ### 3. Start the app
 
@@ -103,14 +109,12 @@ This repository is set up to avoid committing secrets or session data.
 Already ignored:
 
 - `.env*` local environment files
-- `data/analyses.json` local session history
 - build output and dependency folders
 
 Do not commit:
 
 - real access tokens
 - production session secrets
-- generated local analysis data
 
 The app currently includes:
 
@@ -119,6 +123,7 @@ The app currently includes:
 - schema validation on API inputs
 - file size and type checks for screenshot uploads
 - image signature validation instead of trusting MIME type alone
+- no server-side storage of analyses or verdict choices
 
 ## Current API Surface
 
@@ -164,8 +169,8 @@ npm run build
 
 - screenshot OCR currently depends on the browser `TextDetector` API when available
 - voice input currently depends on browser speech recognition support
-- persistence is file-backed for local development, not yet a production database
-- the analysis engine is currently heuristic and local, not yet connected to a model provider
+- the app is intentionally non-retentive and does not persist analysis history server-side
+- the analysis engine requires `ANTHROPIC_API_KEY` and will fail closed without it
 
 ## Documentation
 

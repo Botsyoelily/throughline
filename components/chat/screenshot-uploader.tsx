@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useState } from "react";
+import { useState } from "react";
 
 type ScreenshotUploaderProps = {
   disabled?: boolean;
@@ -31,7 +31,6 @@ export function ScreenshotUploader({
   disabled = false,
   onSubmit
 }: ScreenshotUploaderProps) {
-  const noteId = useId();
   const [file, setFile] = useState<File | null>(null);
   const [note, setNote] = useState("");
   const [status, setStatus] = useState("");
@@ -70,17 +69,13 @@ export function ScreenshotUploader({
           onChange={(event) => setFile(event.target.files?.[0] ?? null)}
         />
       </label>
-      <label className="field" htmlFor={noteId}>
-        <span>Optional note</span>
-        <textarea
-          id={noteId}
-          rows={3}
-          value={note}
-          onChange={(event) => setNote(event.target.value)}
-          placeholder="If extraction is unavailable, briefly describe the request shown in the screenshot."
-          disabled={disabled}
-        />
-      </label>
+      <textarea
+        rows={2}
+        value={note}
+        onChange={(event) => setNote(event.target.value)}
+        placeholder="Add a note if the screenshot text may be unclear."
+        disabled={disabled}
+      />
       <div className="composer-actions">
         <button
           type="button"
@@ -95,4 +90,3 @@ export function ScreenshotUploader({
     </div>
   );
 }
-

@@ -1,21 +1,18 @@
-import { ThroughlineLogo } from "@/components/brand/throughline-logo";
-
 export function GeneratingIndicator() {
   return (
-    <div className="glass-panel generating-card">
-      <div className="spinner-shell">
-        <div className="spinner-rotate">
-          <ThroughlineLogo compact />
-        </div>
+    <div className="msg-row bot generating-row">
+      <div className="bot-avatar generating" aria-hidden="true">
+        <div className="gen-ring" />
+        <div className="bot-avatar-core" />
       </div>
-      <div>
-        <p className="eyebrow">Throughline</p>
-        <h3>Generating response</h3>
-        <p className="muted">
-          Mapping immediate, short-term, and long-term consequences.
-        </p>
+      <div className="bubble bot gen-bubble">
+        <div className="gen-label">Generating</div>
+        <div className="dot-wave" aria-hidden="true">
+          <span />
+          <span />
+          <span />
+        </div>
       </div>
     </div>
   );
 }
-

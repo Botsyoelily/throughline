@@ -32,6 +32,7 @@ Controls:
 - authorize every read and write on the server
 - avoid direct object references without ownership checks
 - use opaque identifiers
+- eliminate retained analysis history when it is not product-critical
 
 ### Authentication Abuse
 
@@ -129,13 +130,13 @@ Log:
 - auth successes and failures
 - upload attempts and validation failures
 - analysis requests and provider failures
-- verdict action submissions
 
 Do not log:
 
 - raw access tokens
 - raw screenshots
 - full transcripts unless explicitly justified and protected
+- raw prompts or full analysis payloads
 - provider secrets
 
 ## Security Review Checklist
@@ -148,4 +149,3 @@ Do not log:
 - secrets stored securely
 - audit trail redacted
 - tests cover unauthorized access and malformed input
-
