@@ -194,13 +194,13 @@ function normalizeAnalysisResponse(input: unknown): AnalysisResponse {
   const normalized: AnalysisResponse = {
     summary: trimToLength(
       raw.summary,
-      350,
+      700,
       "This privacy request changes how your data may be used, so it should be reviewed carefully before you continue."
     ),
     recommendation,
     rationale: trimToLength(
       raw.rationale,
-      220,
+      600,
       recommendation === "decline"
         ? "The request appears broader than necessary for the feature being offered."
         : recommendation === "safe_to_accept"
@@ -211,17 +211,17 @@ function normalizeAnalysisResponse(input: unknown): AnalysisResponse {
     impacts: {
       immediate: trimToLength(
         impacts.immediate,
-        180,
+        500,
         "Granting this request would change what the service can collect or infer right away."
       ),
       shortTerm: trimToLength(
         impacts.shortTerm,
-        180,
+        500,
         "The collected data may soon affect personalization, analytics, sharing, or product behavior."
       ),
       longTerm: trimToLength(
         impacts.longTerm,
-        180,
+        500,
         "Over time, repeated collection can increase exposure through retention, reuse, or profiling."
       )
     },
@@ -262,7 +262,7 @@ async function fetchClaudeText({
       },
       body: JSON.stringify({
         model: getAnthropicModel(),
-        max_tokens: 700,
+        max_tokens: 1500,
         temperature: 0,
         system,
         messages: [

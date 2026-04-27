@@ -7,6 +7,7 @@ import { ScreenshotUploader } from "@/components/chat/screenshot-uploader";
 import { VoiceRecorder } from "@/components/chat/voice-recorder";
 import { ThroughlineLogo } from "@/components/brand/throughline-logo";
 import { VerdictCard } from "@/components/verdict/verdict-card";
+import { ExpandableText } from "@/components/ui/expandable-text";
 import type {
   AnalysisResponse,
   InputMode,
@@ -424,7 +425,11 @@ export function ChatClient() {
                       <div className="analysis-divider-line" />
                     </div>
                     <div className="asymmetry-badge">Information asymmetry detected</div>
-                    <p className="assistant-summary">{message.analysis.summary}</p>
+                    <ExpandableText
+                      text={message.analysis.summary}
+                      maxLines={4}
+                      className="assistant-summary"
+                    />
                     <div className="tiers">
                       {tierMeta.map((tier) => (
                         <div key={tier.key} className={`tier ${tier.className}`}>
@@ -433,13 +438,19 @@ export function ChatClient() {
                             <div className="tier-label">{tier.label}</div>
                             <div className="tier-phase">{tier.phase}</div>
                           </div>
-                          <p className="tier-text">
-                            {message.analysis.impacts[tier.key]}
-                          </p>
+                          <ExpandableText
+                            text={message.analysis.impacts[tier.key]}
+                            maxLines={3}
+                            className="tier-text"
+                          />
                         </div>
                       ))}
                     </div>
-                    <p className="analysis-rationale">{message.analysis.rationale}</p>
+                    <ExpandableText
+                      text={message.analysis.rationale}
+                      maxLines={3}
+                      className="analysis-rationale"
+                    />
                     <div className="response-actions">
                       {message.analysis.userOptions.map((option) => (
                         <button
