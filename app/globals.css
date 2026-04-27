@@ -1286,6 +1286,40 @@ textarea:disabled {
   line-height: 1.6;
 }
 
+.tier-text-clamped {
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.tier-read-more {
+  background: none;
+  border: none;
+  padding: 0;
+  margin-top: 5px;
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  line-height: 1;
+}
+
+.tier.perception .tier-read-more {
+  color: #0891b2;
+}
+
+.tier.comprehension .tier-read-more {
+  color: #d97706;
+}
+
+.tier.projection .tier-read-more {
+  color: #7c3aed;
+}
+
+.tier-read-more:hover {
+  opacity: 0.75;
+}
+
 .response-actions {
   display: flex;
   align-items: center;

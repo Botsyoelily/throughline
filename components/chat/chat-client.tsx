@@ -60,6 +60,36 @@ const tierMeta = [
   }
 ];
 
+function TierText({ text }: { text: string }) {
+  const [expanded, setExpanded] = useState(false);
+  const [isClamped, setIsClamped] = useState(false);
+  const ref = useRef<HTMLParagraphElement>(null);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (el) {
+      setIsClamped(el.scrollHeight > el.clientHeight);
+    }
+  }, [text]);
+
+  return (
+    <>
+      <p ref={ref} className={`tier-text${expanded ? "" : " tier-text-clamped"}`}>
+        {text}
+      </p>
+      {(isClamped || expanded) ? (
+        <button
+          type="button"
+          className="tier-read-more"
+          onClick={() => setExpanded((prev) => !prev)}
+        >
+          {expanded ? "Show less" : "Read more"}
+        </button>
+      ) : null}
+    </>
+  );
+}
+
 export function ChatClient() {
   const [activeMode, setActiveMode] = useState<InputMode>("text");
   const [prompt, setPrompt] = useState("");
@@ -432,9 +462,7 @@ export function ChatClient() {
                           <div className="tier-label">{tier.label}</div>
                           <div className="tier-phase">{tier.phase}</div>
                           <div className="tier-divider" />
-                          <p className="tier-text">
-                            {message.analysis.impacts[tier.key]}
-                          </p>
+                          <TierText text={message.analysis.impacts[tier.key]} />
                         </div>
                       ))}
                     </div>
