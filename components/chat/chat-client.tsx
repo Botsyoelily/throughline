@@ -60,36 +60,6 @@ const tierMeta = [
   }
 ];
 
-function TierText({ text }: { text: string }) {
-  const [expanded, setExpanded] = useState(false);
-  const [isClamped, setIsClamped] = useState(false);
-  const ref = useRef<HTMLParagraphElement>(null);
-
-  useEffect(() => {
-    const el = ref.current;
-    if (el) {
-      setIsClamped(el.scrollHeight > el.clientHeight);
-    }
-  }, [text]);
-
-  return (
-    <>
-      <p ref={ref} className={`tier-text${expanded ? "" : " tier-text-clamped"}`}>
-        {text}
-      </p>
-      {(isClamped || expanded) ? (
-        <button
-          type="button"
-          className="tier-read-more"
-          onClick={() => setExpanded((prev) => !prev)}
-        >
-          {expanded ? "Show less" : "Read more"}
-        </button>
-      ) : null}
-    </>
-  );
-}
-
 export function ChatClient() {
   const [activeMode, setActiveMode] = useState<InputMode>("text");
   const [prompt, setPrompt] = useState("");
@@ -458,11 +428,14 @@ export function ChatClient() {
                     <div className="tiers">
                       {tierMeta.map((tier) => (
                         <div key={tier.key} className={`tier ${tier.className}`}>
-                          <div className="tier-sa-badge">{tier.badge}</div>
-                          <div className="tier-label">{tier.label}</div>
-                          <div className="tier-phase">{tier.phase}</div>
-                          <div className="tier-divider" />
-                          <TierText text={message.analysis.impacts[tier.key]} />
+                          <div className="tier-meta">
+                            <div className="tier-sa-badge">{tier.badge}</div>
+                            <div className="tier-label">{tier.label}</div>
+                            <div className="tier-phase">{tier.phase}</div>
+                          </div>
+                          <p className="tier-text">
+                            {message.analysis.impacts[tier.key]}
+                          </p>
                         </div>
                       ))}
                     </div>

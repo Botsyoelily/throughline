@@ -1190,17 +1190,27 @@ textarea:disabled {
 }
 
 .tiers {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
   margin: 14px 0 8px;
 }
 
 .tier {
+  display: grid;
+  grid-template-columns: 130px 1fr;
+  gap: 14px;
+  align-items: start;
   padding: 13px 14px 12px;
   border-radius: 11px;
-  border-top: 3px solid;
+  border-left: 3px solid;
   background: rgba(0, 0, 0, 0.04);
+}
+
+.tier-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 
 .tier.perception {
@@ -1281,43 +1291,11 @@ textarea:disabled {
 }
 
 .tier-text {
-  font-size: 12px;
+  font-size: 12.5px;
   color: #334155;
-  line-height: 1.6;
-}
-
-.tier-text-clamped {
-  display: -webkit-box;
-  -webkit-line-clamp: 4;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-
-.tier-read-more {
-  background: none;
-  border: none;
-  padding: 0;
-  margin-top: 5px;
-  font-size: 11px;
-  font-weight: 500;
-  cursor: pointer;
-  line-height: 1;
-}
-
-.tier.perception .tier-read-more {
-  color: #0891b2;
-}
-
-.tier.comprehension .tier-read-more {
-  color: #d97706;
-}
-
-.tier.projection .tier-read-more {
-  color: #7c3aed;
-}
-
-.tier-read-more:hover {
-  opacity: 0.75;
+  line-height: 1.65;
+  margin: 0;
+  padding-top: 2px;
 }
 
 .response-actions {
@@ -1635,11 +1613,15 @@ textarea:disabled {
 
   .verdict-header,
   .verdict-actions,
-  .tiers,
   .input-panel.visible,
   .screenshot-panel,
   .voice-panel {
     flex-direction: column;
+  }
+
+  .tier {
+    grid-template-columns: 1fr;
+    gap: 8px;
   }
 
   .confidence-wrap {
