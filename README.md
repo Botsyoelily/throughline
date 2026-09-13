@@ -4,7 +4,6 @@ Throughline is a privacy nudge copilot that helps users understand the downstrea
 
 ## What The App Does
 
-- redeems a signed invite link before entering the workspace
 - accepts privacy prompts as text, screenshot, or voice transcript
 - returns a concise consequence summary plus a recommendation
 - shows immediate, short-term, and long-term impacts
